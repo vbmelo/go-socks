@@ -1,2 +1,2 @@
 # go-socks
-Simple Web Sockets in Go
+Trying WebSockets in Go
