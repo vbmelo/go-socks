@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"golang.org/x/net/websocket"
 )
@@ -15,6 +16,16 @@ type Server struct {
 func NewServer() *Server {
 	return &Server{
 		conns: make(map[*websocket.Conn]bool),
+	}
+}
+
+func (s *Server) handleWSOrderbook(ws *websocket.Conn) {
+	fmt.Println("New connection from client to orderbook feed: ", ws.RemoteAddr())
+
+	for {
+		payload := fmt.Sprintf("orderbook data -> %d\n", time.Now().UnixNano())
+		ws.Write([]byte(payload))
+		time.Sleep(time.Second * 2)
 	}
 }
 
@@ -38,17 +49,28 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 			continue
 		}
 		msg := buf[:n]
-		fmt.Println(string(msg))
-		ws.Write([]byte("Nice message!"))
+
+		s.broadcast(msg)
 	}
 }
 
-// func (s *Server) AddConn(conn *websocket.Conn) {
-
-// }
+/*
+broadcast sends a message to all connected clients
+@param - b: the message to send (as a byte slice)
+*/
+func (s *Server) broadcast(b []byte) {
+	for ws := range s.conns {
+		go func(ws *websocket.Conn) {
+			if _, err := ws.Write(b); err != nil {
+				fmt.Println("write error: ", err)
+			}
+		}(ws)
+	}
+}
 
 func main() {
 	server := NewServer()
 	http.Handle("/ws", websocket.Handler(server.handleWS))
+	http.Handle("/feed/orderbook", websocket.Handler(server.handleWSOrderbook))
 	http.ListenAndServe(":3000", nil)
 }
